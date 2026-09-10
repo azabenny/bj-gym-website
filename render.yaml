@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: bj-gym-management-system
+    runtime: docker
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3000
+# NOTE ON FREE HOSTING: Render's Free web services do NOT support a
+# persistent disk, and their filesystem resets whenever the free service
+# spins down from 15 minutes of inactivity. That means client/payment data
+# saved to db/data.json can be WIPED after idle periods on the Free plan.
+# This is fine for testing/demoing the site, but not safe for a real gym
+# taking real payments. When you're ready to go live for real customers,
+# upgrade this service to a paid "Starter" plan ($7/mo) and add a disk
+# block like the one below (uncomment it) so your data survives restarts:
+#
+#    plan: starter
+#    disk:
+#      name: bj-gym-data
+#      mountPath: /app/db
+#      sizeGB: 1
