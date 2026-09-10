@@ -1,0 +1,97 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Join BJ Gym</title><link rel="stylesheet" href="/style.css"><style>
+.pay-toggle{display:flex;gap:10px;margin:18px 0}
+.pay-toggle button{flex:1;padding:14px;border-radius:10px;border:1px solid #303030;background:#0d0d0d;color:#ddd;font-weight:800;cursor:pointer;transition:.2s}
+.pay-toggle button.active{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#111;border-color:transparent}
+.pay-box{background:#0d0d0d;border:1px solid #262626;border-radius:14px;padding:18px;margin-bottom:18px}
+.pay-box h3{margin:0 0 10px;font-family:'Barlow Condensed';font-size:22px;text-transform:uppercase;color:var(--gold)}
+.acct{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#151515;border:1px solid #2a2a2a;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.acct b{color:#fff;display:block}.acct span{color:#999;font-size:13px}
+.acct .num{font-family:monospace;font-size:16px;color:var(--gold2);letter-spacing:.5px}
+.copy-btn{padding:8px 12px;font-size:12px;border-radius:8px;border:1px solid #3a3a3a;background:#1a1a1a;color:#ddd;cursor:pointer}
+.copy-btn:hover{border-color:var(--gold)}
+.cash-note{color:#bbb;font-size:14px;line-height:1.6}
+.hidden{display:none}
+</style></head><body>
+<nav><div class="logo">BJ GYM</div><div><a href="/index.html">Home</a><a href="/report.html">Report</a></div></nav>
+<section class="section">
+<h1>Join BJ Gym</h1>
+<p>Choose your package, then pay online (and upload your receipt) or choose to pay cash at the gym.</p>
+<form id="form">
+<div class="fields">
+<div><label>Full Name *</label><input name="full_name" required></div>
+<div><label>Phone *</label><input name="phone" required></div>
+<div><label>Email</label><input name="email" type="email"></div>
+<div><label>Gender</label><select name="gender"><option>Prefer not to say</option><option>Male</option><option>Female</option></select></div>
+<div><label>Age</label><input name="age" type="number" min="1"></div>
+<div><label>Fitness Goal</label><select name="fitness_goal"><option>General Fitness</option><option>Weight Loss</option><option>Muscle Building</option><option>Strength</option></select></div>
+<div><label>Package *</label><select name="package_name" id="packageSelect" required><option>Loading packages...</option></select></div>
+<div><label>Duration *</label><select name="duration" required><option value="1">1 Month</option><option value="3">3 Months</option><option value="6">6 Months</option><option value="12">12 Months</option></select></div>
+<div><label>Client Photo (Optional)</label><input id="photo" type="file" accept="image/*"><small>Optional profile photo.</small></div>
+</div>
+<div><label>Address</label><input name="address"></div>
+
+<h3 style="font-family:'Barlow Condensed';font-size:28px;text-transform:uppercase;margin:26px 0 4px;color:var(--gold)">How will you pay?</h3>
+<div class="pay-toggle">
+  <button type="button" id="btnOnline" class="active" onclick="setMethod('online')">Pay Online (Telebirr / CBE / Bank)</button>
+  <button type="button" id="btnCash" onclick="setMethod('cash')">Pay Cash at the Gym</button>
+</div>
+
+<div id="onlineBox" class="pay-box">
+  <h3>Send payment to one of these accounts</h3>
+  <div id="accounts">Loading payment accounts...</div>
+  <div style="margin-top:14px"><label>Which account did you pay to?</label><select name="payment_provider" id="providerSelect"></select></div>
+  <div style="margin-top:14px"><label>Payment Receipt Screenshot *</label><input id="receipt" type="file" accept="image/*"><small>Upload a screenshot/photo of your payment confirmation. Our staff will verify it and unlock your membership.</small></div>
+</div>
+
+<div id="cashBox" class="pay-box hidden">
+  <h3>Pay at the front desk</h3>
+  <p class="cash-note">Submit this form, then come to BJ Gym and pay in cash. A staff member will confirm your payment and unlock your membership on the spot. No screenshot needed.</p>
+</div>
+
+<button class="btn" type="submit">SUBMIT REGISTRATION</button>
+<div class="status" id="status"></div>
+</form>
+</section>
+<script>
+let method = 'online';
+function setMethod(m){
+  method = m;
+  btnOnline.classList.toggle('active', m==='online');
+  btnCash.classList.toggle('active', m==='cash');
+  onlineBox.classList.toggle('hidden', m!=='online');
+  cashBox.classList.toggle('hidden', m!=='cash');
+  receipt.required = (m==='online');
+}
+const toDataURL=f=>new Promise((resolve,reject)=>{if(!f)return resolve('');const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(f)});
+
+fetch('/api/packages').then(r=>r.json()).then(ps=>packageSelect.innerHTML=ps.map(p=>`<option value="${p.name}">${p.name} — ${Number(p.price).toLocaleString()} ETB / ${p.duration} mo.</option>`).join(''));
+
+fetch('/api/payment-accounts').then(r=>r.json()).then(accts=>{
+  if(!accts.length){ accounts.innerHTML='<p class="cash-note">No online payment accounts configured yet — please choose "Pay Cash at the Gym".</p>'; return; }
+  accounts.innerHTML = accts.map(a=>`<div class="acct"><div><b>${a.provider}${a.account_name?' — '+a.account_name:''}</b><span class="num">${a.account_number}</span>${a.note?'<span>'+a.note+'</span>':''}</div><button type="button" class="copy-btn" onclick="navigator.clipboard.writeText('${a.account_number}');this.textContent='Copied!'">Copy #</button></div>`).join('');
+  providerSelect.innerHTML = accts.map(a=>`<option value="${a.provider}">${a.provider}${a.account_name?' — '+a.account_name:''}</option>`).join('');
+});
+
+receipt.required = true;
+
+form.onsubmit=async e=>{
+  e.preventDefault();
+  status.textContent='Preparing registration...';
+  const data=Object.fromEntries(new FormData(form));
+  data.payment_method = method;
+  data.client_photo=await toDataURL(photo.files[0]);
+  if(method==='online'){
+    if(!receipt.files[0]){ status.textContent='❌ Please upload your payment receipt screenshot.'; return; }
+    data.payment_receipt=await toDataURL(receipt.files[0]);
+  } else {
+    data.payment_receipt='';
+    data.payment_provider='Cash';
+  }
+  status.textContent='Submitting...';
+  const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const j=await r.json();
+  status.textContent=j.success?('✅ '+j.message):('❌ '+j.error);
+  if(j.success)form.reset();
+};
+</script>
+</body></html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BJ Gym Admin Dashboard</title><link rel="stylesheet" href="/admin/style.css">
+<style>.card.pending{border:1px solid #f5d374;background:#fffbea}.card.pending .number{color:#a16207}.card-link{text-decoration:none;color:inherit;display:block}</style>
+</head>
+<body>
+<div class="top"><b>BJ GYM SYSTEM</b><div class="nav"><a href="/admin/dashboard.html">Dashboard</a><a href="/admin/clients.html">Clients</a><a href="/admin/register-client.html">Register Client</a><a href="/admin/reports.html">Reports</a><a href="/admin/settings.html">Payment Accounts</a><a href="#" onclick="bjLogout()">Logout</a></div></div>
+<main class="container">
+  <div class="page-head"><div><p class="eyebrow">ADMIN CONTROL CENTER</p><h1>Dashboard</h1><p class="muted">Manage BJ Gym operations, employees and membership packages.</p></div><span id="roleBadge" class="badge"></span></div>
+  <div class="cards">
+    <a class="card-link" href="/admin/clients.html"><div class="card">Total Clients<div class="number" id="total">0</div></div></a>
+    <a class="card-link" href="/admin/clients.html"><div class="card">Active Memberships<div class="number" id="active">0</div></div></a>
+    <a class="card-link" href="/admin/clients.html"><div class="card pending">⏳ Pending Approval<div class="number" id="pending">0</div></div></a>
+    <a class="card-link" href="/admin/reports.html"><div class="card">Pending Reports<div class="number" id="reports">0</div></div></a>
+    <div class="card">Employees<div class="number" id="employeeCount">0</div></div>
+  </div>
+
+  <section class="panel" id="employeePanel"><div class="section-head"><div><h2>Employee List</h2><p class="muted">View the people working at BJ Gym.</p></div><button onclick="openEmployeeForm()">+ Add Employee</button></div>
+    <div id="employeeForm" class="inline-form hidden"><input id="empName" placeholder="Full name *"><input id="empPhone" placeholder="Phone"><select id="empPosition"><option>Registrar</option><option>Trainer</option><option>Maintenance</option><option>Receptionist</option><option>Admin</option></select><select id="empStatus"><option>Active</option><option>Inactive</option></select><input id="empUsername" placeholder="Login username (optional)"><input id="empPassword" type="password" placeholder="Password (optional)"><button onclick="addEmployee()">Save Employee</button><button class="secondary" onclick="closeEmployeeForm()">Cancel</button></div>
+    <table><thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Position</th><th>Username</th><th>Status</th><th>Action</th></tr></thead><tbody id="employees"></tbody></table>
+  </section>
+
+  <section class="panel" id="packagePanel"><div class="section-head"><div><h2>Membership Packages</h2><p class="muted">Add and manage the packages clients can choose when registering.</p></div><button onclick="openPackageForm()">+ Add Package</button></div>
+    <div id="packageForm" class="inline-form hidden"><input id="pkgName" placeholder="Package name *"><input id="pkgPrice" type="number" min="0" placeholder="Price *"><input id="pkgDuration" type="number" min="1" placeholder="Duration in months *"><input id="pkgFeatures" class="wide" placeholder="Features separated by commas"><button onclick="addPackage()">Save Package</button><button class="secondary" onclick="closePackageForm()">Cancel</button></div>
+    <div id="packageGrid" class="package-grid"></div>
+  </section>
+
+  <section class="panel"><div class="section-head"><div><h2>Recent Registrations</h2></div><a class="button-link" href="/admin/clients.html">View all clients →</a></div><table><thead><tr><th>Name</th><th>Phone</th><th>Package</th><th>Source</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></section>
+</main>
+<script src="/admin/common.js"></script>
+<script>
+const user = window.bjUser;
+if(user?.role!=='admin'){ document.getElementById('employeePanel').style.display='none'; document.getElementById('packagePanel').style.display='none'; }
+roleBadge.textContent=(user?.role||'staff').toUpperCase();
+async function load(){const d=await fetch('/api/dashboard').then(r=>r.json()); total.textContent=d.total;active.textContent=d.active;pending.textContent=d.pending;reports.textContent=d.reports;rows.innerHTML=d.recent.map(x=>`<tr><td>${x.full_name}</td><td>${x.phone}</td><td>${x.package_name}</td><td>${x.source}</td><td>${x.locked?'⏳ Pending':'Active'}</td></tr>`).join(''); if(user?.role==='admin'){loadEmployees();loadPackages()}}
+async function loadEmployees(){const d=await fetch('/api/employees').then(r=>r.json());employeeCount.textContent=d.length;employees.innerHTML=d.map(x=>`<tr><td>${x.employee_id}</td><td>${x.name}</td><td>${x.phone||'—'}</td><td>${x.position}</td><td>${x.username||'—'}</td><td><span class="status-pill ${x.status==='Active'?'active':'inactive'}">${x.status}</span></td><td>${x.username==='admin'?'Protected':`<button class="small danger" onclick="deleteEmployee(${x.id})">Delete</button>`}</td></tr>`).join('')}
+function openEmployeeForm(){employeeForm.classList.remove('hidden')} function closeEmployeeForm(){employeeForm.classList.add('hidden')}
+async function addEmployee(){const body={name:empName.value,phone:empPhone.value,position:empPosition.value,status:empStatus.value,username:empUsername.value,password:empPassword.value};const r=await fetch('/api/employees',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)return alert(j.error);['empName','empPhone','empUsername','empPassword'].forEach(id=>document.getElementById(id).value='');closeEmployeeForm();loadEmployees()}
+async function deleteEmployee(id){if(!confirm('Delete this employee?'))return;const r=await fetch('/api/employees/'+id,{method:'DELETE'});const j=await r.json();if(!r.ok)return alert(j.error);loadEmployees()}
+async function loadPackages(){const d=await fetch('/api/packages').then(r=>r.json());packageGrid.innerHTML=d.map(x=>`<div class="package-card"><div><h3>${x.name}</h3><div class="price">${Number(x.price).toLocaleString()} <small>ETB</small></div><p>${x.duration} month${x.duration==1?'':'s'}</p><ul>${x.features.map(f=>`<li>${f}</li>`).join('')}</ul></div><div class="actions"><button class="small" onclick="editPackage(${x.id})">Edit</button><button class="small danger" onclick="deletePackage(${x.id})">Delete</button></div></div>`).join('')}
+function openPackageForm(){packageForm.classList.remove('hidden')} function closePackageForm(){packageForm.classList.add('hidden')}
+async function addPackage(){const body={name:pkgName.value,price:pkgPrice.value,duration:pkgDuration.value,features:pkgFeatures.value};const r=await fetch('/api/packages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)return alert(j.error);['pkgName','pkgPrice','pkgDuration','pkgFeatures'].forEach(id=>document.getElementById(id).value='');closePackageForm();loadPackages()}
+async function editPackage(id){const name=prompt('Package name:');if(name===null)return;const price=prompt('Price (ETB):');if(price===null)return;const duration=prompt('Duration in months:', '1');if(duration===null)return;const features=prompt('Features separated by commas:');if(features===null)return;const r=await fetch('/api/packages/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,price,duration,features})});const j=await r.json();if(!r.ok)return alert(j.error);loadPackages()}
+async function deletePackage(id){if(!confirm('Delete this package?'))return;const r=await fetch('/api/packages/'+id,{method:'DELETE'});const j=await r.json();if(!r.ok)return alert(j.error);loadPackages()}
+load();
+</script></body></html>

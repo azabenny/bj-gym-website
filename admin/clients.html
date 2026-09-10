@@ -1,0 +1,74 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clients</title><link rel="stylesheet" href="/admin/style.css"><style>
+.badge{padding:6px 10px;border-radius:999px;font-weight:bold;color:#111;display:inline-block}
+.green{background:#54d68a}.yellow{background:#ffd75e}.red{background:#ff6b6b;color:#fff}.gray{background:#d1d5db;color:#111}
+.thumb{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#ddd}
+.detail{font-size:12px;display:block;max-width:210px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pending-panel{background:#fffbea;border:1px solid #f5d374}
+.pending-row td{background:#fffdf5}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.receipt-link{font-weight:700}
+.empty{color:#6b7280;padding:14px 0}
+</style></head><body>
+<div class="top"><b>BJ GYM SYSTEM</b><div class="nav"><a href="/admin/dashboard.html">Dashboard</a><a href="/admin/register-client.html">Register Client</a><a href="/admin/reports.html">Reports</a><a href="/admin/settings.html">Payment Accounts</a><a href="#" onclick="bjLogout()">Logout</a></div></div>
+<main class="container">
+<h1>Clients</h1>
+
+<section class="panel pending-panel" id="pendingPanel">
+  <div class="section-head"><div><h2>⏳ Pending Approvals</h2><p class="muted">These clients registered online or chose cash and are locked until staff verifies payment and unlocks them.</p></div></div>
+  <table><thead><tr><th>Name</th><th>Phone</th><th>Package</th><th>Method</th><th>Receipt</th><th>Status</th><th>Action</th></tr></thead><tbody id="pendingRows"></tbody></table>
+  <div id="pendingEmpty" class="empty hidden">No pending approvals right now. 🎉</div>
+</section>
+
+<section class="panel">
+<div class="section-head"><div><h2>All Clients</h2></div></div>
+<div class="row"><input id="q" placeholder="Search by name, phone or package"><button onclick="load()">Search</button></div>
+<table><thead><tr><th>Photo</th><th>ID</th><th>Name</th><th>Phone</th><th>Package</th><th>Months</th><th>Membership</th><th>Source</th><th>Payment</th></tr></thead><tbody id="rows"></tbody></table>
+</section>
+</main>
+<script src="/admin/common.js"></script>
+<script>
+async function load(){
+  let d = await fetch('/api/clients?q='+encodeURIComponent(q.value)).then(r=>r.json());
+
+  const pending = d.filter(x=>x.locked);
+  pendingEmpty.classList.toggle('hidden', pending.length>0);
+  pendingRows.innerHTML = pending.map(x=>`<tr class="pending-row">
+    <td><b>${x.full_name}</b></td>
+    <td>${x.phone}</td>
+    <td>${x.package_name} (${x.duration} mo.)</td>
+    <td>${x.payment_method==='cash' ? 'Cash at gym' : 'Online — '+(x.payment_provider||'—')}</td>
+    <td>${x.payment_receipt ? `<a class="receipt-link" target="_blank" href="${x.payment_receipt}">View screenshot</a>` : '—'}</td>
+    <td>${x.payment_status||'—'}</td>
+    <td class="actions">
+      <button class="small" onclick="approve(${x.id})">✅ Approve & Unlock</button>
+      <button class="small danger" onclick="reject(${x.id})">✖ Reject</button>
+    </td>
+  </tr>`).join('');
+
+  rows.innerHTML = d.map(x=>{
+    const m=x.membership||{};
+    const photo=x.client_photo?`<img class="thumb" src="${x.client_photo}" alt="photo">`:'—';
+    return `<tr><td>${photo}</td><td>${x.member_id}</td><td><b>${x.full_name}</b><span class="detail">${x.locked?'Awaiting approval':'Start: '+bjFmtDate(m.start_date)+' | End: '+bjFmtDate(m.end_date)}</span></td><td>${x.phone}</td><td>${x.package_name}</td><td>${x.duration}</td><td><span class="badge ${m.color}">${m.label}</span></td><td>${x.source}</td><td>${x.payment_status||'—'}${x.payment_receipt?'<br><a target="_blank" href="'+x.payment_receipt+'">View receipt</a>':''}</td></tr>`;
+  }).join('');
+}
+
+async function approve(id){
+  if(!confirm('Confirm you have verified the payment for this client and want to unlock their membership?')) return;
+  const r = await fetch('/api/clients/'+id+'/approve', { method:'POST' });
+  const j = await r.json();
+  if(!r.ok) return alert(j.error);
+  load();
+}
+
+async function reject(id){
+  const reason = prompt('Reason for rejecting this payment (shown to staff, optional):','Could not verify screenshot');
+  if(reason===null) return;
+  const r = await fetch('/api/clients/'+id+'/reject', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
+  const j = await r.json();
+  if(!r.ok) return alert(j.error);
+  load();
+}
+
+load();
+</script>
+</body></html>

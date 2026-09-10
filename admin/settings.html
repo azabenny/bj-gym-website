@@ -1,0 +1,67 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Payment Accounts</title><link rel="stylesheet" href="/admin/style.css"><style>.acct-card{border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fafafa}.acct-card b{font-family:'Barlow Condensed';font-size:22px}.acct-card .num{font-family:monospace;font-size:16px;color:#9a7000}.acct-card .note{color:#6b7280;font-size:13px}</style></head><body>
+<div class="top"><b>BJ GYM SYSTEM</b><div class="nav"><a href="/admin/dashboard.html">Dashboard</a><a href="/admin/clients.html">Clients</a><a href="/admin/register-client.html">Register Client</a><a href="/admin/reports.html">Reports</a><a href="#" onclick="bjLogout()">Logout</a></div></div>
+<main class="container">
+<h1>Payment Accounts</h1>
+<p class="muted">These are the Telebirr / CBE / bank accounts shown to customers on the Join page so they know where to send money before uploading their receipt screenshot. Only Admins can edit this list.</p>
+
+<section class="panel" id="adminOnly">
+  <div class="section-head"><div><h2>Add Account</h2></div></div>
+  <div class="inline-form" style="grid-template-columns:repeat(4,1fr)">
+    <input id="provider" placeholder="Provider (e.g. Telebirr, CBE) *">
+    <input id="accountNumber" placeholder="Account / phone number *">
+    <input id="accountName" placeholder="Account holder name">
+    <input id="note" placeholder="Note shown to customers (optional)">
+  </div>
+  <button onclick="addAccount()">+ Add Account</button>
+</section>
+
+<section class="panel">
+  <div class="section-head"><div><h2>Current Accounts</h2></div></div>
+  <div id="list"></div>
+  <div id="empty" class="hidden" style="color:#6b7280">No payment accounts yet — add one above, or clients can still pay cash at the gym.</div>
+</section>
+</main>
+<script src="/admin/common.js"></script>
+<script>
+if (window.bjUser && window.bjUser.role !== 'admin') {
+  document.getElementById('adminOnly').style.display = 'none';
+}
+async function load(){
+  const accts = await fetch('/api/payment-accounts').then(r=>r.json());
+  empty.classList.toggle('hidden', accts.length>0);
+  list.innerHTML = accts.map(a=>`<div class="acct-card">
+    <div><b>${a.provider}</b> ${a.account_name?'— '+a.account_name:''}<div class="num">${a.account_number}</div>${a.note?`<div class="note">${a.note}</div>`:''}</div>
+    <div class="actions">
+      <button class="small" onclick='editAccount(${JSON.stringify(a)})'>Edit</button>
+      <button class="small danger" onclick="deleteAccount(${a.id})">Delete</button>
+    </div>
+  </div>`).join('');
+}
+async function addAccount(){
+  const body = { provider: provider.value, account_number: accountNumber.value, account_name: accountName.value, note: note.value };
+  const r = await fetch('/api/payment-accounts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const j = await r.json();
+  if(!r.ok) return alert(j.error);
+  provider.value=accountNumber.value=accountName.value=note.value='';
+  load();
+}
+async function editAccount(a){
+  const provider = prompt('Provider:', a.provider); if(provider===null) return;
+  const account_number = prompt('Account / phone number:', a.account_number); if(account_number===null) return;
+  const account_name = prompt('Account holder name:', a.account_name||''); if(account_name===null) return;
+  const note = prompt('Note shown to customers:', a.note||''); if(note===null) return;
+  const r = await fetch('/api/payment-accounts/'+a.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider,account_number,account_name,note}) });
+  const j = await r.json();
+  if(!r.ok) return alert(j.error);
+  load();
+}
+async function deleteAccount(id){
+  if(!confirm('Delete this payment account?')) return;
+  const r = await fetch('/api/payment-accounts/'+id, { method:'DELETE' });
+  const j = await r.json();
+  if(!r.ok) return alert(j.error);
+  load();
+}
+load();
+</script>
+</body></html>
